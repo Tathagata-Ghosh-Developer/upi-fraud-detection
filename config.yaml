@@ -1,0 +1,121 @@
+# Pipeline configuration. Every stage reads this file (override with --config).
+# Large artefacts (data, MLflow store, Ray results, models) live under work_dir,
+# which should be on fast local disk, not a synced folder.
+# The FRAUD_WORK environment variable overrides work_dir (used on the cluster).
+
+work_dir: ~/fraud_work
+raw_csv_name: PS_20174392719_1491204439457_log.csv
+seed: 42
+
+ingest:
+  blocksize: 64MB            # Dask CSV chunk size -> ~8 Parquet partitions
+
+features:
+  windows_hours: [1, 24]     # look-back windows for velocity features
+  npartitions: 16            # hash partitions used for the per-account shuffle
+
+# Time-based split on `step` (1 step = 1 hour, steps 1..743 = ~31 days).
+# Boundaries are inclusive upper bounds; see README "Time-based split".
+# Legitimate traffic collapses after step 408 while fraud injection continues,
+# so steps 409-743 are kept apart as a separate "late period" stress test.
+split:
+  train_end_step: 264        # days 0-10
+  val_end_step: 336          # days 11-13
+  test_end_step: 408         # days 14-16; later steps -> late_period
+
+# Feature groups. Ablation runs combine these; the "primary" set is what a
+# remitter bank could compute at authorisation time.
+feature_groups:
+  base:                      # the transaction itself
+    - amount_log
+    - type_CASH_IN
+    - type_CASH_OUT
+    - type_DEBIT
+    - type_PAYMENT
+    - type_TRANSFER
+    - hour_sin
+    - hour_cos
+    - dest_is_merchant
+  velocity:                  # strictly-past per-account activity
+    - orig_cnt_1h
+    - orig_amt_1h
+    - orig_cnt_24h
+    - orig_amt_24h
+    - dest_cnt_1h
+    - dest_amt_1h
+    - dest_cnt_24h
+    - dest_amt_24h
+  payer_balance:             # payer's own balance, known before authorising
+    - oldbalanceOrg
+    - amount_to_orig_balance
+    - orig_balance_is_zero
+  post_txn_balance:          # post-transaction and payee balances (leaky in PaySim)
+    - newbalanceOrig
+    - oldbalanceDest
+    - newbalanceDest
+    - amount_to_dest_balance
+    - orig_balance_error
+    - dest_balance_error
+    - dest_balances_both_zero
+
+# Raw PaySim columns as most public notebooks use them (for the leakage ablation).
+raw_paysim_columns:
+  - amount
+  - type_CASH_IN
+  - type_CASH_OUT
+  - type_DEBIT
+  - type_PAYMENT
+  - type_TRANSFER
+  - oldbalanceOrg
+  - newbalanceOrig
+  - oldbalanceDest
+  - newbalanceDest
+
+ablation:
+  # name: list of feature groups (or the special key raw_paysim_columns)
+  base: [base]
+  base+velocity: [base, velocity]
+  base+payer_balance: [base, payer_balance]
+  base+velocity+payer_balance: [base, velocity, payer_balance]
+  all_incl_post_txn_balance: [base, velocity, payer_balance, post_txn_balance]
+  raw_paysim_columns: [raw_paysim_columns]
+
+# primary: everything a remitter bank knows when it authorises a payment.
+# strict:  no balance column at all, as the PaySim authors advise (see README).
+primary_feature_set: base+velocity+payer_balance
+strict_feature_set: base+velocity
+
+xgboost:
+  # Defaults for the ablation runs; tuning searches around these.
+  params:
+    objective: binary:logistic
+    eval_metric: aucpr
+    tree_method: hist
+    device: cuda
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 1
+    reg_lambda: 1.0
+  num_boost_round: 2000
+  early_stopping_rounds: 100
+  scale_pos_weight: full     # full = n_neg / n_pos, sqrt = its square root, none = 1
+
+tune:
+  num_samples: 64
+  gpus_per_trial: 0.5        # two concurrent trials share one 8 GB GPU
+  cpus_per_trial: 4
+  max_boost_rounds: 1000
+  grace_period: 50           # ASHA: minimum boosting rounds before a trial can be cut
+  reduction_factor: 3
+  time_budget_s: 1800
+
+evaluation:
+  precision_target: 0.9
+  alert_budgets: [0.001, 0.005]   # fraction of transactions sent for review
+  review_cost: 100.0              # cost of one analyst review, in transaction currency units
+  shap_sample: 20000
+
+mlflow:
+  experiment: upi-fraud-paysim

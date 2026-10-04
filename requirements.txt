@@ -1,0 +1,19 @@
+# Python 3.12, Linux x86_64 (WSL2 Ubuntu 24.04 or a Linux HPC node with an NVIDIA GPU).
+# The xgboost wheel for Linux ships with CUDA support; no separate CUDA toolkit is needed.
+dask[dataframe]==2026.8.0
+pandas==3.0.6
+numpy==2.5.3
+pyarrow==25.0.1
+xgboost==3.4.1
+ray[tune]==2.59.0
+mlflow==3.16.1
+scikit-learn==1.9.1
+shap==0.52.0
+matplotlib==3.11.2
+pyyaml==6.0.3
+pytest==9.1.1
+
+# Optional GPU DataFrame path (Linux only). RAPIDS pins its own pandas and dask
+# versions, so install it into a separate environment (README "Optional cuDF path"):
+#   pip install "cudf-cu12==26.2.1" "dask-cudf-cu12==26.2.1" pyyaml
+# Verified: cudf 26.02.01 with dask 2026.1.1 and pandas 2.3.3.
