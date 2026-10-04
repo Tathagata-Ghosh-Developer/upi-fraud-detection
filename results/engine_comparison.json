@@ -1,0 +1,16 @@
+{
+  "what": "ingest + features stages run with --engine cudf and --engine pandas on the same idle machine, outputs compared with scripts/compare_feature_outputs.py",
+  "hardware": "RTX 3070 Ti Laptop GPU 8 GB, i7-12650H, WSL2 Ubuntu 24.04, 7.7 GB RAM",
+  "cudf_env": {"cudf": "26.02.01", "dask": "2026.1.1", "pandas": "2.3.3"},
+  "pandas_env": {"dask": "2026.8.0", "pandas": "3.0.6"},
+  "seconds": {
+    "ingest_pandas": 8.1,
+    "features_pandas": 53.6,
+    "ingest_cudf": [8.8, 4.8],
+    "features_cudf": [34.7, 31.9]
+  },
+  "feature_outputs_identical": true,
+  "columns_compared": 36,
+  "rows_compared": 6362620,
+  "note": "cuDF runs: first and second run; the first includes CUDA context and kernel warm-up. All model results in this repository were produced from the pandas-engine features."
+}

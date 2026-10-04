@@ -1,0 +1,12 @@
+{
+  "ingest (pandas)": 18.6,
+  "features (pandas)": 71.9,
+  "split": 15.1,
+  "baselines": 33.9,
+  "train_ablation": 59.8,
+  "tune (primary)": 314.4,
+  "refit_best (primary)": 20.6,
+  "tune (strict)": 319.4,
+  "refit_best (strict)": 20.6,
+  "evaluate": 21.3
+}

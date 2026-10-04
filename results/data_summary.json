@@ -1,0 +1,76 @@
+{
+  "rows": 6362620,
+  "fraud": 8213,
+  "fraud_rate": 0.001290820448180152,
+  "is_flagged_fraud": 16,
+  "steps": [
+    1,
+    743
+  ],
+  "parquet_partitions": 7,
+  "by_type": {
+    "CASH_IN": {
+      "rows": 1399284,
+      "fraud": 0
+    },
+    "CASH_OUT": {
+      "rows": 2237500,
+      "fraud": 4116
+    },
+    "DEBIT": {
+      "rows": 41432,
+      "fraud": 0
+    },
+    "PAYMENT": {
+      "rows": 2151495,
+      "fraud": 0
+    },
+    "TRANSFER": {
+      "rows": 532909,
+      "fraud": 4097
+    }
+  },
+  "feature_coverage": {
+    "engine": "pandas",
+    "share_rows_with_orig_history_24h": 0.00017367059481785806,
+    "share_rows_with_dest_history_24h": 0.37000732402689457
+  },
+  "splits": {
+    "train": {
+      "steps": [
+        1,
+        264
+      ],
+      "rows": 3608540,
+      "fraud": 2981,
+      "fraud_rate": 0.0008260958725689614
+    },
+    "val": {
+      "steps": [
+        265,
+        336
+      ],
+      "rows": 1176235,
+      "fraud": 786,
+      "fraud_rate": 0.0006682338138212177
+    },
+    "test": {
+      "steps": [
+        337,
+        408
+      ],
+      "rows": 1202642,
+      "fraud": 822,
+      "fraud_rate": 0.0006834951714641597
+    },
+    "late_period": {
+      "steps": [
+        409,
+        743
+      ],
+      "rows": 375203,
+      "fraud": 3624,
+      "fraud_rate": 0.009658771385090205
+    }
+  }
+}

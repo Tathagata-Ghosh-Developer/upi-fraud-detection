@@ -1,0 +1,9 @@
+{
+  "rows": 3608540,
+  "features": 20,
+  "rounds": 300,
+  "cpu_threads": 16,
+  "cuda_seconds": 6.6,
+  "cpu_seconds": 169.9,
+  "speedup": 25.7
+}

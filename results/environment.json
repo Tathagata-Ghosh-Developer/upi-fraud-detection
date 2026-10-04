@@ -1,0 +1,18 @@
+{
+  "gpu": "NVIDIA GeForce RTX 3070 Ti Laptop GPU, 8192 MiB, 610.62",
+  "cpu_count": 16,
+  "ram_gb": 8.2,
+  "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "packages": {
+    "pandas": "3.0.6",
+    "numpy": "2.5.3",
+    "dask": "2026.8.0",
+    "pyarrow": "25.0.1",
+    "xgboost": "3.4.1",
+    "ray": "2.59.0",
+    "mlflow": "3.16.1",
+    "scikit-learn": "1.9.1",
+    "shap": "0.52.0"
+  }
+}
