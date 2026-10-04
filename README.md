@@ -417,6 +417,121 @@ README comes from the pandas-engine features.** Since the cuDF features are
 identical, the downstream results would be too, but they were not rerun from
 the cuDF output.
 
+### 8.7 Cluster run (SLURM)
+
+Both SLURM templates were run on a national HPC system's GPU partition: nodes with 2x
+NVIDIA A100 80GB PCIe, 2x Intel Xeon Gold 6240R (48 cores), 192 GB RAM and
+InfiniBand, RHEL 9 family, driver 590.48. Same pinned packages
+(`requirements.txt`, Python 3.12) in a venv on the shared parallel
+filesystem, which also held the data, MLflow store and Ray results; the
+dataset was downloaded and checksummed on a login node. Outputs (CSV and
+JSON only) are in `results/cluster/`. The laptop numbers above remain the
+primary results.
+
+**Single-GPU pipeline** (`slurm/pipeline_single_gpu.sbatch`: 1 A100, 16
+cores, 48 GB; `results/cluster/pipeline/`):
+
+| Stage | Laptop (RTX 3070 Ti, 7.7 GB RAM) | Cluster node (1x A100, 16 cores) |
+|---|---|---|
+| ingest (Dask, pandas engine) | 19 s | 8 s |
+| features | 72 s | 18 s |
+| split | 15 s | 12 s |
+| baselines | 34 s | 29 s |
+| XGBoost ablation (6 fits) | 60 s | 38 s |
+| Ray Tune + ASHA, primary (64 trials, 2 per GPU) | 314 s | 523 s |
+| refit best, primary | 21 s | 15 s |
+| Ray Tune + ASHA, strict (64 trials, 2 per GPU) | 319 s | 500 s |
+| refit best, strict | 21 s | 15 s |
+| evaluate | 21 s | 24 s |
+| **end to end** | **965 s** | **1,278 s** (job time, incl. tests and checksum) |
+
+- **Metrics match the laptop run.** Every XGBoost number is identical: the
+  ablation table (same best iterations, same validation and test metrics),
+  both searches (all 64 trials of each got the same score and ran the same
+  number of rounds, so ASHA stopped the same trials), the best
+  configurations, the test-window metrics, the late-period metrics and the
+  SHAP importances. XGBoost's GPU `hist` method sums gradients in fixed
+  point, so a different GPU builds the same trees, and the search is
+  seeded. The only differences are in the logistic regression baselines,
+  in the fifth significant digit (test PR-AUC 0.16003 vs 0.16007, primary),
+  from floating-point summation order in the CPU solver on a different CPU.
+- **Data stages and single fits were faster** (more cores, and 48 GB
+  instead of the laptop's 7.7 GB; the idle-laptop pandas figures in 8.6 are
+  closer: 8 s and 54 s).
+- **Tuning was 1.6x slower.** The trials themselves took about as long as on
+  the laptop (their own run times add up to 350 s vs 324 s for the primary
+  search; a trial is a few seconds of work, too small to benefit from an
+  A100), but each trial spent ~11 s per slot outside its own run time
+  against ~5 s on the laptop. The likely cause is per-trial start-up: every
+  trial is a fresh Ray worker process that imports XGBoost, pandas and Ray
+  from the venv on the shared parallel filesystem, and Tune writes its
+  result files there; this was not profiled further.
+
+**Multi-node Ray Tune** (`slurm/tune_multi_gpu.sbatch`): the same 128
+configurations of the primary search (seed 42, ASHA), one trial per GPU with
+8 cores each, Ray head plus one worker per extra node, 32 cores and 2 GPUs
+per node (`results/cluster/tune_scaling.csv`):
+
+| Nodes | GPUs | Wall-clock, 128 trials | Trials/min | Speed-up | GPU busy share | Best val. PR-AUC | Test PR-AUC (refit) |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 2 | 990 s | 7.8 | 1.00x | 36% | 0.9327 | 0.918 |
+| 2 | 4 | 527 s | 14.6 | 1.87x | 38% | 0.9327 | 0.918 |
+| 4 | 8 | 278 s | 27.6 | 3.54x | 37% | 0.9327 | 0.918 |
+
+- **Throughput scales close to linearly.** Four times the GPUs gives 3.54x
+  the trials per minute (89% scaling efficiency); the shortfall is likely the
+  fixed cost of starting Ray on each node and the last few trials finishing on a
+  partly idle cluster.
+- **The GPUs are mostly idle.** A trial is only a few seconds of GPU work, so
+  per-trial overhead (a fresh worker process importing
+  XGBoost, pandas and Ray from the shared filesystem, plus result writes)
+  dominates: summed trial time is only ~37% of GPUs x wall-clock at every
+  node count. Adding nodes adds trial slots, which is why throughput still
+  scales. Packing trials helps here: the single-GPU pipeline job ran 2
+  trials per A100 and reached 7.3 trials/min (64 in 523 s), close to the
+  7.8 of one trial on each of 2 GPUs, so per-GPU throughput nearly doubles
+  (on the laptop GPU it gave no gain).
+- **Same answer at every scale.** ASHA is asynchronous, so which trials it
+  stops depends on when results arrive: total boosting rounds differ
+  (10,464 to 11,549). All three runs still found the same best
+  configuration (validation PR-AUC 0.9327). Its test PR-AUC, 0.918, is a
+  little below the laptop's 64-trial best (0.920): a higher validation score
+  did not carry over, which is within the noise one expects at this level, so
+  the laptop model stays the headline result.
+- **Cost:** 1.46 node-hours for all four jobs (`results/cluster/jobs.csv`).
+  A first 4-node attempt in the large-job queue never started: that queue
+  requires at least 5 nodes, so the run used the debug queue (up to 4 nodes,
+  1 hour).
+
+**Template fixes found on the cluster** (all in the committed scripts):
+
+- Multi-node: the GPU count per node was hard-coded to 4 (the nodes have 2),
+  so Ray would have handed trials GPU ids that do not exist; it now comes from
+  SLURM. Whether `srun` inherits `--cpus-per-task` from `sbatch` depends on the
+  SLURM version (without it each Ray node could be pinned to one core), so it
+  is now passed explicitly.
+- Multi-node: fixed 30 s sleeps replaced by polling until every GPU has
+  registered with the Ray head; a job-specific port instead of 6379; the head
+  address from the name the other nodes resolve.
+- Multi-node: `ray stop` at the end kills every Ray process of the same user
+  on the node, including other jobs' on a shared node; the script now stops
+  only its own Ray steps, also on failure (`trap`). The Ray steps do not exit
+  within 30 s of SIGTERM, so they are then killed and SLURM logs them as
+  cancelled; the job itself completes normally.
+- Multi-node: arguments after the script name now reach `tune.py`, so node
+  count and trial budget can change without editing the file.
+- `tune.py`: without a `--ray-address` it now starts a private Ray instance
+  (`address="local"`); before, `ray.init()` joined any Ray cluster it found
+  running on the node.
+- Single-GPU: `download_data.sh || echo ...` hid a failed checksum and went
+  on with a corrupt CSV; the job now stops if the file is missing or does not
+  verify.
+- Both: no site-specific scratch default; `FRAUD_WORK` must be set (sbatch
+  passes it to the job), and the wall-clock limits match the measured times.
+  Ray 2.59 enables token authentication by default and writes the token to
+  `~/.ray/auth_token`; on a shared home, `RAY_AUTH_TOKEN_PATH` keeps it
+  elsewhere.
+
 ## 9. Design decisions
 
 | Decision | Why | Alternatives considered |
@@ -458,8 +573,9 @@ the cuDF output.
   declines is not priced in.
 - **Hour resolution.** Same-hour history is excluded to avoid look-ahead; with
   real timestamps the windows would be sharper.
-- **Cluster scripts are templates.** The SLURM files use placeholders and have
-  not been run on a cluster yet.
+- **Cluster runs are few.** Each SLURM template ran on one site (section 8.7),
+  once per configuration. Other sites need their own partition and account
+  values and may schedule differently (QoS minimums, srun defaults).
 
 ## 11. Reproduce
 
@@ -494,18 +610,21 @@ Edit `<partition>` and `<account>` in the scripts, then from the repository
 root on a login node:
 
 ```bash
-export FRAUD_WORK=/scratch/$USER/fraud_work
+export FRAUD_WORK=<fast shared storage>/fraud_work   # visible from every compute node
 uv venv --python 3.12 "$FRAUD_WORK/.venv" && source "$FRAUD_WORK/.venv/bin/activate"
 uv pip install -r requirements.txt
 bash scripts/download_data.sh                   # login nodes usually have internet
 
 sbatch slurm/pipeline_single_gpu.sbatch          # full pipeline on one GPU
-sbatch slurm/tune_multi_gpu.sbatch               # larger search, one trial per GPU across nodes
+sbatch --nodes=4 slurm/tune_multi_gpu.sbatch --num-samples 128   # one trial per GPU across nodes
 ```
 
-`tune.py` takes `--num-samples`, `--gpus-per-trial`, `--cpus-per-trial`,
-`--time-budget-s` and `--ray-address` (the multi-node script starts a Ray head
-and workers and passes the head address).
+sbatch passes the shell's environment (`FRAUD_WORK`, optionally
+`FRAUD_RESULTS`) to the job. Arguments after the multi-node script go to
+`tune.py`, which takes `--num-samples`, `--gpus-per-trial`, `--cpus-per-trial`,
+`--time-budget-s` and `--ray-address` (the script starts a Ray head and one
+worker per extra node, waits until all GPUs have registered, and passes the
+head address).
 
 ### Optional cuDF path
 
@@ -548,6 +667,7 @@ slurm/                   single-GPU pipeline, multi-GPU Ray Tune
 results/                 metrics.json, ablation.csv, tune_trials_*.csv, best_params.json,
                          mlflow_runs.csv, data_summary.json, timings.json, environment.json,
                          gpu_vs_cpu.json, shap_importance.csv, figures/*.png
+results/cluster/         SLURM runs: pipeline/, tune_{1,2,4}node/, tune_scaling.csv, jobs.csv
 ```
 
 ## Licence and citation
