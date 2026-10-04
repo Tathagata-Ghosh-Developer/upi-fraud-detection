@@ -81,7 +81,8 @@ def main() -> None:
     parser.add_argument("--gpus-per-trial", type=float, help="GPU share per trial, e.g. 0.5 or 1")
     parser.add_argument("--cpus-per-trial", type=int)
     parser.add_argument("--time-budget-s", type=int, help="stop launching trials after this many seconds")
-    parser.add_argument("--ray-address", default=None, help="'auto' to join an existing Ray cluster")
+    parser.add_argument("--ray-address", default=None,
+                        help="host:port of a Ray head, or 'auto' to join a running cluster (default: new local instance)")
     parser.add_argument("--feature-set", default="primary", choices=FEATURE_ROLES,
                         help="primary (authorisation-time features) or strict (no balance columns)")
     args = parser.parse_args()
@@ -101,7 +102,8 @@ def main() -> None:
 
     with stage_timer(f"tune ({role})"):
         # Workers import this package by name, so point them at the project root.
-        ray.init(address=args.ray_address, include_dashboard=False, log_to_driver=False,
+        # "local" starts a private instance; without it Ray joins any cluster it finds on the node.
+        ray.init(address=args.ray_address or "local", include_dashboard=False, log_to_driver=False,
                  runtime_env={"env_vars": {"PYTHONPATH": str(PROJECT_ROOT)}})
         scheduler = ASHAScheduler(
             time_attr="boost_round",
