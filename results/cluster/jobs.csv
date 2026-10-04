@@ -1,0 +1,5 @@
+run,nodes,gpus,cpus,mem,elapsed_s,node_hours,state
+pipeline,1,1,16,48G,1278,0.355,COMPLETED
+tune_1node,1,2,32,96G,1090,0.303,COMPLETED
+tune_2node,2,4,64,192G,645,0.358,COMPLETED
+tune_4node,4,8,128,384G,403,0.448,COMPLETED

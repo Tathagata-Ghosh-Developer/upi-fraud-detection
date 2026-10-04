@@ -1,0 +1,4 @@
+nodes,gpus,trials_completed,tune_wall_s,trials_per_min,boosting_rounds_total,trial_time_sum_s,gpu_busy_share,best_val_pr_auc_search,refit_val_pr_auc,test_pr_auc_refit,speedup_vs_1_node
+1,2,128,990.2,7.8,10903,706.3,0.36,0.9327,0.9327,0.9181,1.0
+2,4,128,527.0,14.6,10464,794.4,0.38,0.9327,0.9327,0.9181,1.87
+4,8,128,278.1,27.6,11549,813.7,0.37,0.9327,0.9327,0.9181,3.54

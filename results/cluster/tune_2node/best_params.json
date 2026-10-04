@@ -1,0 +1,32 @@
+{
+  "primary": {
+    "feature_set": "base+velocity+payer_balance",
+    "search_best_val_aucpr": 0.9327153970946735,
+    "refit_val_pr_auc": 0.9327262084900731,
+    "best_iteration": 118,
+    "trials_completed": 128,
+    "config": {
+      "max_depth": 7,
+      "learning_rate": 0.09807116403826538,
+      "subsample": 0.9401097195334887,
+      "colsample_bytree": 0.6702953977957622,
+      "min_child_weight": 9.945667067219796,
+      "reg_lambda": 1.6702933243622677,
+      "scale_pos_weight_mode": "sqrt"
+    },
+    "xgboost_params": {
+      "objective": "binary:logistic",
+      "eval_metric": "aucpr",
+      "tree_method": "hist",
+      "device": "cuda",
+      "max_depth": 7,
+      "learning_rate": 0.09807116403826538,
+      "subsample": 0.9401097195334887,
+      "colsample_bytree": 0.6702953977957622,
+      "min_child_weight": 9.945667067219796,
+      "reg_lambda": 1.6702933243622677,
+      "seed": 42,
+      "scale_pos_weight": 34.778057027198216
+    }
+  }
+}

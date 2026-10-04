@@ -1,0 +1,18 @@
+{
+  "gpu": "NVIDIA A100 80GB PCIe, 81920 MiB, 590.48.01",
+  "cpu_count": 48,
+  "ram_gb": 201.4,
+  "os": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+  "python": "3.12.15",
+  "packages": {
+    "pandas": "3.0.6",
+    "numpy": "2.5.3",
+    "dask": "2026.8.0",
+    "pyarrow": "25.0.1",
+    "xgboost": "3.4.1",
+    "ray": "2.59.0",
+    "mlflow": "3.16.1",
+    "scikit-learn": "1.9.1",
+    "shap": "0.52.0"
+  }
+}
