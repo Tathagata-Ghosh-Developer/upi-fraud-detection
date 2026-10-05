@@ -226,7 +226,7 @@ from ~400k transactions a day to ~10-50k after day 16, while fraud stays at
 ~250 a day; the last day contains only fraud. That base-rate jump is an
 artefact of the simulator, and testing there would inflate PR-AUC. The
 boundary was set from daily volume before any model was trained, and the
-late period is still scored and reported as a stress test (section 8.4).
+late period is still scored and reported as a stress test (section 8.3).
 
 ## 7. Models and tuning
 
@@ -253,7 +253,7 @@ Tuning outcome (64 configurations per feature set, `results/tune_trials_*.csv`,
 | strict | 319 s | 0.314 | 0.351 | depth 4, lr 0.17, subsample 0.87, colsample 0.70, min_child_weight 42, lambda 0.24, `sqrt` weighting |
 
 - **ASHA did most of the saving.** In the primary search 47 of 64 trials were
-  stopped at the first rung (50 rounds) and only 12 ran past 150 rounds; all
+  stopped at the first rung (50 rounds), 12 reached 150 rounds and only 5 went past it; all
   64 trials together used 5,476 boosting rounds, against up to 64,000 without
   early termination.
 - **Tuning helps a little; the feature set matters far more** (+0.008
@@ -568,7 +568,7 @@ per node (`results/cluster/tune_scaling.csv`):
 - **Uncalibrated scores.** `scale_pos_weight` distorts probabilities; ranking
   and thresholds are unaffected, but probability estimates would need Platt or
   isotonic calibration on validation.
-- **Review cost is an assumption** (100 units per alert); section 8.3 shows how
+- **Review cost is an assumption** (100 units per alert); section 8.2 shows how
   the operating point moves for other values. Customer friction from false
   declines is not priced in.
 - **Hour resolution.** Same-hour history is excluded to avoid look-ahead; with
